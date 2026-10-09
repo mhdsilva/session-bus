@@ -15,7 +15,15 @@ export function createOperatorAuthenticator(app: FastifyInstance) {
   const sameOrigin = (request: FastifyRequest): boolean => {
     const origin = request.headers.origin;
     const host = request.headers.host;
-    if (!origin || !host) return false;
+    if (!host) return false;
+    if (!origin) {
+      if (request.headers["sec-fetch-site"] !== "same-origin") return false;
+      try {
+        return isLoopbackHost(new URL(`http://${host}`).hostname);
+      } catch {
+        return false;
+      }
+    }
     try {
       const parsed = new URL(origin);
       return (

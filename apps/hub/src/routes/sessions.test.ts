@@ -189,6 +189,15 @@ describe("session HTTP API", () => {
       headers: { host: "127.0.0.1:7345", origin: "http://evil.example" },
     });
     expect(crossOrigin.statusCode).toBe(403);
+    const browserSameOrigin = await app.inject({
+      method: "GET",
+      url: "/api/v1/operator/bootstrap",
+      headers: {
+        host: "127.0.0.1:7345",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+    expect(browserSameOrigin.statusCode).toBe(204);
     const noCookie = await app.inject({
       method: "GET",
       url: "/api/v1/operator/sessions",
