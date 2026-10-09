@@ -73,12 +73,59 @@ function connect(url: string): WebSocket {
   return socket;
 }
 
-function nextFrame(socket: WebSocket): Promise<Record<string, unknown>> {
+const frameQueues = new WeakMap<
+  WebSocket,
+  {
+    frames: Array<Record<string, unknown>>;
+    waiters: Array<{
+      resolve: (frame: Record<string, unknown>) => void;
+      reject: (error: Error) => void;
+    }>;
+  }
+>();
+
+function nextFrame(
+  socket: WebSocket,
+  label = "",
+): Promise<Record<string, unknown>> {
+  let state = frameQueues.get(socket);
+  if (!state) {
+    state = { frames: [], waiters: [] };
+    frameQueues.set(socket, state);
+    socket.on("message", (data) => {
+      const frame = JSON.parse(data.toString()) as Record<string, unknown>;
+      const waiter = state?.waiters.shift();
+      if (waiter) waiter.resolve(frame);
+      else state?.frames.push(frame);
+    });
+    socket.on("error", (error) => {
+      for (const waiter of state?.waiters.splice(0) ?? []) waiter.reject(error);
+    });
+    socket.on("close", (code, reason) => {
+      const error = new Error(
+        `socket closed before frame (${code}: ${reason.toString()})`,
+      );
+      for (const waiter of state?.waiters.splice(0) ?? []) waiter.reject(error);
+    });
+  }
+  const saved = state.frames.shift();
+  if (saved) return Promise.resolve(saved);
   return new Promise((resolve, reject) => {
-    socket.once("message", (data) =>
-      resolve(JSON.parse(data.toString()) as Record<string, unknown>),
-    );
-    socket.once("error", reject);
+    const timeout = setTimeout(() => {
+      state?.waiters.splice(state.waiters.indexOf(waiter), 1);
+      reject(new Error(`timed out waiting for WebSocket frame ${label}`));
+    }, 1_000);
+    const waiter = {
+      resolve: (frame: Record<string, unknown>) => {
+        clearTimeout(timeout);
+        resolve(frame);
+      },
+      reject: (error: Error) => {
+        clearTimeout(timeout);
+        reject(error);
+      },
+    };
+    state?.waiters.push(waiter);
   });
 }
 
@@ -136,6 +183,68 @@ describe("event broker", () => {
 });
 
 describe("authenticated WebSocket event stream", () => {
+  it("streams all rooms to the local operator using a cookie-issued ticket", async () => {
+    const { app, alice, room } = await fixture();
+    const denied = await app.inject({
+      method: "POST",
+      url: "/api/v1/operator/ws-tickets",
+      headers: { host: "127.0.0.1:7345", origin: "http://127.0.0.1:7345" },
+    });
+    expect(denied.statusCode).toBe(401);
+
+    const bootstrap = await app.inject({
+      method: "GET",
+      url: "/api/v1/operator/bootstrap",
+      headers: { host: "127.0.0.1:7345", origin: "http://127.0.0.1:7345" },
+    });
+    const cookie = bootstrap.headers["set-cookie"] as string;
+    const ticketResponse = await app.inject({
+      method: "POST",
+      url: "/api/v1/operator/ws-tickets",
+      headers: {
+        cookie,
+        host: "127.0.0.1:7345",
+        origin: "http://127.0.0.1:7345",
+      },
+    });
+    expect(ticketResponse.statusCode).toBe(200);
+
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    if (!address || typeof address === "string")
+      throw new Error("expected TCP listener");
+    const socket = connect(`ws://127.0.0.1:${address.port}/api/v1/ws`);
+    await openSocket(socket);
+    socket.send(
+      JSON.stringify({
+        type: "subscribe",
+        ticket: ticketResponse.json().ticket,
+        afterByRoom: {},
+      }),
+    );
+    expect((await nextFrame(socket, "operator backlog")).event).toMatchObject({
+      type: "member_invited",
+    });
+    expect(await nextFrame(socket, "operator ready")).toMatchObject({
+      type: "ready",
+    });
+    const message = await app.inject({
+      method: "POST",
+      url: `/api/v1/rooms/${room.id}/messages`,
+      headers: {
+        authorization: `Bearer ${alice.instanceToken}`,
+        "idempotency-key": "operator-live-message",
+      },
+      payload: { text: "Visible to the operator" },
+    });
+    expect(message.statusCode).toBe(201);
+    expect(
+      (await nextFrame(socket, "operator live message")).event,
+    ).toMatchObject({
+      payload: { text: "Visible to the operator" },
+    });
+  }, 15_000);
+
   it("delivers backlog then live events, and resumes from a room cursor", async () => {
     const { app, alice, bob, room } = await fixture();
     const ticketResponse = await app.inject({
@@ -159,6 +268,7 @@ describe("authenticated WebSocket event stream", () => {
     );
     const invited = await nextFrame(socket);
     expect((invited.event as { type: string }).type).toBe("member_invited");
+    expect(await nextFrame(socket)).toMatchObject({ type: "ready" });
 
     const accept = await app.inject({
       method: "POST",
@@ -207,6 +317,7 @@ describe("authenticated WebSocket event stream", () => {
       type: "message",
       sequence: 3,
     });
+    expect(await nextFrame(reconnect)).toMatchObject({ type: "ready" });
   });
 
   it("rejects an invalid ticket without accepting an instance token in the URL", async () => {

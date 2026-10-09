@@ -4,6 +4,7 @@ import type { WebSocket } from "ws";
 import { z } from "zod/v4";
 import type { HubRuntime } from "../app.js";
 import { authenticateBearer } from "../auth.js";
+import { OPERATOR_SESSION_ID } from "../operator-auth.js";
 import { SlowConsumerError } from "./event-broker.js";
 
 interface Ticket {
@@ -64,6 +65,19 @@ export async function readBacklog(
   cursors: Record<string, number>,
 ) {
   return runtime.db.read(async (uow) => {
+    if (sessionId === OPERATOR_SESSION_ID) {
+      const rooms = await uow.rooms.listRooms();
+      const events = [];
+      for (const room of rooms) {
+        events.push(
+          ...(await uow.events.listAfter(room.id, cursors[room.id] ?? 0)),
+        );
+      }
+      return events.sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) || a.sequence - b.sequence,
+      );
+    }
     const memberships = await uow.rooms.listMembershipsForSession(sessionId);
     const events = [];
     for (const membership of memberships) {
@@ -109,6 +123,28 @@ export async function registerWebSocketRoutes(
   app: FastifyInstance,
   runtime: HubRuntime,
 ): Promise<void> {
+  app.post("/api/v1/operator/ws-tickets", async (request, reply) => {
+    if (!runtime.operator.sameOrigin(request))
+      return reply.code(403).send({
+        error: {
+          code: "ORIGIN_FORBIDDEN",
+          message: "Same-origin request required",
+        },
+      });
+    if (!runtime.operator.matches(request))
+      return reply.code(401).send({
+        error: {
+          code: "OPERATOR_AUTHENTICATION_FAILED",
+          message: "Operator session required",
+        },
+      });
+    reply.header("Cache-Control", "no-store");
+    return runtime.webSocketTickets.issue(
+      OPERATOR_SESSION_ID,
+      runtime.clock.now().getTime(),
+    );
+  });
+
   app.post("/api/v1/ws-tickets", async (request, reply) => {
     const { session } = await authenticateBearer(runtime.db, request);
     reply.header("Cache-Control", "no-store");
@@ -153,11 +189,13 @@ export async function registerWebSocketRoutes(
             sessionId,
             parsed.data.afterByRoom,
           );
-          const activeRooms = await runtime.db.read(async (uow) =>
-            (await uow.rooms.listMembershipsForSession(sessionId))
+          const activeRooms = await runtime.db.read(async (uow) => {
+            if (sessionId === OPERATOR_SESSION_ID)
+              return (await uow.rooms.listRooms()).map((room) => room.id);
+            return (await uow.rooms.listMembershipsForSession(sessionId))
               .filter((membership) => membership.state === "active")
-              .map((membership) => membership.roomId),
-          );
+              .map((membership) => membership.roomId);
+          });
           subscription = runtime.eventBroker.subscribe({
             sessionId,
             roomIds: activeRooms,
@@ -171,6 +209,8 @@ export async function registerWebSocketRoutes(
           const sent = new Set<string>();
           for (const event of [...initial, ...overlap])
             sendEvent(client, event, sent);
+          if (client.readyState === client.OPEN)
+            client.send(JSON.stringify({ type: "ready" }));
           for await (const event of subscription) {
             sendEvent(client, event, sent);
             if (client.readyState !== client.OPEN) break;
