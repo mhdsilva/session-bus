@@ -151,6 +151,40 @@ export const apiErrorSchema = z.object({
   }),
 });
 
+const roomMembershipItemSchema = z.object({
+  room: roomSchema,
+  membership: membershipSchema,
+});
+const roomEventsResultSchema = z.object({
+  items: z.array(roomEventSchema),
+  nextCursor: eventCursorSchema,
+});
+
+export const mcpToolOutputSchemas = {
+  register_session: z.object({ session: sessionSchema }),
+  heartbeat: z.object({ session: sessionSchema }),
+  update_session: z.object({ session: sessionSchema }),
+  list_sessions: z.object({ items: z.array(sessionSchema) }),
+  create_room: z.object({ room: roomSchema }),
+  invite_sessions: z.object({ items: z.array(membershipSchema) }),
+  list_invitations: z.object({ items: z.array(roomMembershipItemSchema) }),
+  respond_to_invitation: z.object({
+    membership: membershipSchema,
+    replayed: z.boolean(),
+  }),
+  list_rooms: z.object({ items: z.array(roomMembershipItemSchema) }),
+  get_room_context: z.object({ context: roomContextSchema }),
+  send_message: z.object({ event: roomEventSchema }),
+  list_events: roomEventsResultSchema,
+  wait_for_events: z.object({ items: z.array(roomEventSchema) }),
+  create_task: z.object({ task: sharedTaskSchema }),
+  claim_task: z.object({ task: sharedTaskSchema }),
+  update_task: z.object({ task: sharedTaskSchema }),
+  publish_artifact: z.object({ artifact: artifactSchema }),
+  leave_room: z.object({ membership: membershipSchema }),
+  close_room: z.object({ room: roomSchema }),
+} as const;
+
 export type SessionStatus = z.infer<typeof sessionStatusSchema>;
 export type SessionProfile = z.infer<typeof sessionProfileSchema>;
 export type Session = z.infer<typeof sessionSchema>;
