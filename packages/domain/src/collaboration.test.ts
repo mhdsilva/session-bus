@@ -748,6 +748,14 @@ describe("artifacts", () => {
         idempotencyKey: "a-3",
       }),
     ).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
+    await expect(
+      service.publishArtifact(alice.auth, {
+        roomId: room.id,
+        kind: "url",
+        uri: "https://exa mple.com/file",
+        idempotencyKey: "a-4",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_PAYLOAD" });
   });
 
   it("stores only the validated reference and publishes an event", async () => {

@@ -42,6 +42,17 @@ function isAbsolutePath(value: string): boolean {
   return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
 }
 
+function isValidAbsoluteUri(value: string): boolean {
+  if (!URI_SCHEME_PATTERN.test(value) || /\s/.test(value)) return false;
+  if (/%(?![\da-f]{2})/i.test(value)) return false;
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function validateArtifactKind(kind: string): ArtifactKind {
   const parsed = artifactKindSchema.safeParse(kind);
   if (!parsed.success) {
@@ -63,18 +74,21 @@ function validateArtifactUri(kind: ArtifactKind, uri: string): string {
   }
   const hasScheme = URI_SCHEME_PATTERN.test(trimmed);
   if (kind === "url") {
-    if (!hasScheme) {
+    if (!isValidAbsoluteUri(trimmed)) {
       throw new DomainError(
         "INVALID_PAYLOAD",
-        "a url artifact must be an absolute URI with a scheme",
+        "a url artifact must be a syntactically valid absolute URI",
       );
     }
     return trimmed;
   }
-  if (!hasScheme && !isAbsolutePath(trimmed)) {
+  if (
+    (hasScheme && !isValidAbsoluteUri(trimmed)) ||
+    (!hasScheme && !isAbsolutePath(trimmed))
+  ) {
     throw new DomainError(
       "INVALID_PAYLOAD",
-      "artifact uri must be an absolute URI or an absolute path",
+      "artifact uri must be a syntactically valid absolute URI or an absolute path",
     );
   }
   return trimmed;
