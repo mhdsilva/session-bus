@@ -1,0 +1,5 @@
+node_modules
+dist
+.session-bus
+playwright-report
+test-results
