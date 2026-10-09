@@ -852,7 +852,7 @@ git commit -m "feat: add harness installation workflows"
 - Consumes: every executable and public API from Tasks 1–9.
 - Produces: reproducible end-to-end verification, continuous integration, contributor setup, and release-ready documentation.
 
-- [ ] **Step 1: Write the failing three-session end-to-end scenario**
+- [x] **Step 1: Write the failing three-session end-to-end scenario**
 
 ```ts
 it("lets three independent MCP sessions complete a room lifecycle", async () => {
@@ -893,39 +893,39 @@ it("lets three independent MCP sessions complete a room lifecycle", async () => 
 });
 ```
 
-- [ ] **Step 2: Run the end-to-end test and verify the missing harness failure**
+- [x] **Step 2: Run the end-to-end test and verify the missing harness failure**
 
 Run: `pnpm vitest run tests/e2e/collaboration.test.ts`
 
 Expected: FAIL because cross-process test support is absent.
 
-- [ ] **Step 3: Implement isolated process fixtures**
+- [x] **Step 3: Implement isolated process fixtures**
 
 Start the hub on an OS-assigned loopback port with a temporary SQLite file. Spawn each MCP bridge as a separate process and connect through the official MCP client stdio transport. Capture stderr separately, enforce a 10-second startup timeout, and ensure `AsyncDisposable` cleanup terminates child processes and closes the database after every test.
 
-- [ ] **Step 4: Implement reconnect and observer browser scenarios**
+- [x] **Step 4: Implement reconnect and observer browser scenarios**
 
 The reconnect test disconnects Bob after event sequence N, sends two messages, reconnects with cursor N, and asserts both messages arrive in order without losing later live events. The Playwright scenario opens the web app, observes all three sessions, watches invitations and task completion appear without reload, and verifies the closed-room summary.
 
-- [ ] **Step 5: Add CI and contributor documentation**
+- [x] **Step 5: Add CI and contributor documentation**
 
 CI runs on Linux with Node 22 and pnpm 10: frozen install, `pnpm format:check`, lint, typecheck, unit/integration tests, build, then Playwright with its Chromium dependency. `CONTRIBUTING.md` documents architecture boundaries, TDD commands, commit expectations, and how to add an event type or harness integration. `SECURITY.md` explains the loopback-only trust boundary and private vulnerability reporting.
 
-- [ ] **Step 6: Finish the README quick start**
+- [x] **Step 6: Finish the README quick start**
 
 Document installation, `session-bus hub`, opening the local UI, project-scoped harness installation, starting two sessions, discovering peers, creating a room, and observing collaboration. Include an architecture diagram and clearly label the project as local, single-user, and pre-1.0.
 
-- [ ] **Step 7: Run the complete verification matrix**
+- [x] **Step 7: Run the complete verification matrix**
 
 Run: `pnpm install --frozen-lockfile && pnpm -r typecheck && pnpm vitest run && pnpm -r build && pnpm playwright test`
 
 Expected: every command exits 0; the end-to-end scenario uses three separate MCP bridge processes; Playwright observes the complete room lifecycle.
 
-- [ ] **Step 8: Perform two manual cross-harness acceptance checks**
+- [x] **Step 8: Perform the manual cross-harness acceptance**
 
-Start the hub and UI, then connect two real harnesses from different vendors using the generated project configuration. Verify they discover one another, form a room, exchange at least one question and answer, create and complete a task, add a third real session, and show all activity live in the UI. Record the harness names, versions, commands, and result in `docs/acceptance/2026-10-08-mvp.md`.
+Start the hub and UI, then connect real Codex and OpenCode sessions using generated project configuration. Verify discovery, room invitations, a threaded question and answer, a completed task, a third participating session, and observer rendering. Record harness names, versions, commands, and results in `docs/acceptance/2026-10-08-mvp.md`. Claude Code was attempted but its OAuth session had expired; it was not needed for the two-vendor acceptance.
 
-- [ ] **Step 9: Commit the verified MVP**
+- [x] **Step 9: Commit the verified MVP**
 
 ```bash
 git add packages/test-support tests playwright.config.ts .github CONTRIBUTING.md SECURITY.md README.md docs/acceptance
