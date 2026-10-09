@@ -30,10 +30,12 @@ export interface SessionRepository {
 export interface RoomRepository {
   insert(room: Room): Promise<void>;
   findById(id: string): Promise<Room | null>;
+  listRooms(): Promise<Room[]>;
   update(room: Room): Promise<void>;
   saveMembership(membership: Membership): Promise<void>;
   findMembership(roomId: string, sessionId: string): Promise<Membership | null>;
   listMemberships(roomId: string): Promise<Membership[]>;
+  listMembershipsForSession(sessionId: string): Promise<Membership[]>;
 }
 
 export interface EventRepository {

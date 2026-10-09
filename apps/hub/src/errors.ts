@@ -13,11 +13,12 @@ export function registerErrorHandler(app: FastifyInstance): void {
             : error.code === "ROOM_MEMBERSHIP_REQUIRED" ||
                 error.code === "INVITATION_NOT_ACCEPTED"
               ? 403
-              : error.code === "ROOM_CLOSED" ||
-                  error.code === "INVALID_TRANSITION" ||
-                  error.code === "IDEMPOTENCY_CONFLICT"
-                ? 409
-                : 400;
+              : error.code === "ROOM_CLOSED"
+                ? 410
+                : error.code === "INVALID_TRANSITION" ||
+                    error.code === "IDEMPOTENCY_CONFLICT"
+                  ? 409
+                  : 400;
       return reply
         .code(status)
         .send({ error: { code: error.code, message: error.message } });

@@ -157,6 +157,8 @@ export class SqliteDatabase implements Database, AsyncDisposable {
           const r = one("SELECT * FROM rooms WHERE id = ?", id);
           return r ? decodeRoom(r) : null;
         },
+        listRooms: async () =>
+          many("SELECT * FROM rooms ORDER BY created_at,id").map(decodeRoom),
         update: async (r) => {
           run(
             "UPDATE rooms SET title=?,objective=?,status=?,created_by=?,created_at=?,context_summary=? WHERE id=?",
@@ -182,6 +184,11 @@ export class SqliteDatabase implements Database, AsyncDisposable {
           many(
             "SELECT * FROM memberships WHERE room_id=? ORDER BY joined_at, session_id",
             roomId,
+          ).map(decodeMembership),
+        listMembershipsForSession: async (sessionId) =>
+          many(
+            "SELECT * FROM memberships WHERE session_id=? ORDER BY joined_at, room_id",
+            sessionId,
           ).map(decodeMembership),
       },
       events: {

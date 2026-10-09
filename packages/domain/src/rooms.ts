@@ -9,6 +9,7 @@ import {
 } from "@session-bus/protocol";
 import type { Clock } from "./clock.js";
 import { DomainError } from "./errors.js";
+import { appendEvent } from "./events.js";
 import type { IdGenerator } from "./ids.js";
 import type { Database, StoredSession, UnitOfWork } from "./repositories.js";
 import { hashToken, stripTokenHash } from "./sessions.js";
@@ -34,6 +35,12 @@ export interface InviteSessionsInput {
 export interface RespondToInvitationInput {
   roomId: string;
   accept: boolean;
+  idempotencyKey?: string;
+}
+
+interface RespondToInvitationIdempotencyRecord {
+  accept: boolean;
+  membership: Membership;
 }
 
 interface CreateRoomIdempotencyRecord {
@@ -196,6 +203,12 @@ export async function inviteSessions(
       });
       await uow.rooms.saveMembership(membership);
       memberships.push(membership);
+      await appendEvent(deps, uow, {
+        roomId: room.id,
+        senderId: caller.id,
+        type: "member_invited",
+        payload: { sessionId },
+      });
     }
     await uow.idempotency.save(key, {
       sessionIds: [...input.sessionIds],
@@ -223,6 +236,23 @@ export async function respondToInvitation(
         `room ${input.roomId} does not exist`,
       );
     }
+    const key = input.idempotencyKey
+      ? `room:respond:${room.id}:${caller.id}:${input.idempotencyKey}`
+      : undefined;
+    if (key) {
+      const existing = (await uow.idempotency.find(
+        key,
+      )) as RespondToInvitationIdempotencyRecord | null;
+      if (existing) {
+        if (existing.accept !== input.accept) {
+          throw new DomainError(
+            "IDEMPOTENCY_CONFLICT",
+            "idempotency key was already used for a different invitation response",
+          );
+        }
+        return existing.membership;
+      }
+    }
     if (room.status !== "open") {
       throw new DomainError("ROOM_CLOSED", `room ${room.id} is ${room.status}`);
     }
@@ -246,6 +276,20 @@ export async function respondToInvitation(
       joinedAt: deps.clock.now().toISOString(),
     });
     await uow.rooms.saveMembership(updated);
+    if (input.accept) {
+      await appendEvent(deps, uow, {
+        roomId: room.id,
+        senderId: caller.id,
+        type: "member_joined",
+        payload: { sessionId: caller.id },
+      });
+    }
+    if (key) {
+      await uow.idempotency.save(key, {
+        accept: input.accept,
+        membership: updated,
+      });
+    }
     return updated;
   });
 }

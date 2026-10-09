@@ -107,6 +107,10 @@ class MemoryRoomRepository implements RoomRepository {
     return this.rooms.get(id) ?? null;
   }
 
+  async listRooms(): Promise<Room[]> {
+    return [...this.rooms.values()];
+  }
+
   async update(room: Room): Promise<void> {
     this.rooms.set(room.id, room);
   }
@@ -127,6 +131,12 @@ class MemoryRoomRepository implements RoomRepository {
 
   async listMemberships(roomId: string): Promise<Membership[]> {
     return [...this.memberships.values()].filter((m) => m.roomId === roomId);
+  }
+
+  async listMembershipsForSession(sessionId: string): Promise<Membership[]> {
+    return [...this.memberships.values()].filter(
+      (m) => m.sessionId === sessionId,
+    );
   }
 }
 
@@ -450,8 +460,9 @@ describe("room event log", () => {
       idempotencyKey: "m-3",
     });
     const events = await service.listEvents(alice.auth, room.id, 0, 50);
-    expect(events.map((event) => event.sequence)).toEqual([1, 2, 3]);
-    expect(events.map((event) => event.type)).toEqual([
+    const messages = events.filter((event) => event.type === "message");
+    expect(messages.map((event) => event.sequence)).toEqual([3, 4, 5]);
+    expect(messages.map((event) => event.type)).toEqual([
       "message",
       "message",
       "message",
@@ -492,11 +503,13 @@ describe("room event log", () => {
       idempotencyKey: "c-1",
     });
     const events = await service.listEvents(alice.auth, room.id, 0, 50);
-    expect(events.map((event) => event.type)).toEqual([
-      "question",
-      "decision",
-      "conflict_reported",
-    ]);
+    expect(
+      events
+        .filter((event) =>
+          ["question", "decision", "conflict_reported"].includes(event.type),
+        )
+        .map((event) => event.type),
+    ).toEqual(["question", "decision", "conflict_reported"]);
   });
 });
 

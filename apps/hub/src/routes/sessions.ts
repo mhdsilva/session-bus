@@ -14,6 +14,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod/v4";
 import type { HubDependencies } from "../app.js";
 import { authenticateBearer } from "../auth.js";
+import { OPERATOR_SESSION_ID } from "../operator-auth.js";
 
 const heartbeatSchema = z
   .object({ status: sessionStatusSchema.optional() })
@@ -70,6 +71,10 @@ export async function registerSessionRoutes(
     await authenticateBearer(deps.db, request);
     await expirePresence(deps, deps.config.presenceTtlMs);
     const sessions = await deps.db.read((uow) => uow.sessions.listAll());
-    return { items: sessions.map(stripTokenHash) };
+    return {
+      items: sessions
+        .filter((session) => session.id !== OPERATOR_SESSION_ID)
+        .map(stripTokenHash),
+    };
   });
 }

@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { isLoopbackHost } from "./config.js";
 
 export const OPERATOR_COOKIE = "session_bus_operator";
+export const OPERATOR_SESSION_ID = "00000000-0000-4000-8000-000000000001";
 
 export function createOperatorAuthenticator(app: FastifyInstance) {
   const token = randomBytes(32).toString("hex");

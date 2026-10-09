@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
+    "@fastify/websocket": "^11.2.0",
     "@session-bus/domain": "workspace:*",
     "@session-bus/protocol": "workspace:*",
     "@session-bus/sqlite": "workspace:*",
@@ -19,6 +20,8 @@
   "devDependencies": {
     "@types/node": "^22.20.5",
     "typescript": "^6.0.3",
+    "@types/ws": "^8.18.1",
+    "ws": "^8.18.3",
     "vitest": "^4.0.0"
   }
 }

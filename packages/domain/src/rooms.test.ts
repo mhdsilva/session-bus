@@ -103,6 +103,10 @@ class MemoryRoomRepository implements RoomRepository {
     return this.rooms.get(id) ?? null;
   }
 
+  async listRooms(): Promise<Room[]> {
+    return [...this.rooms.values()];
+  }
+
   async update(room: Room): Promise<void> {
     this.rooms.set(room.id, room);
   }
@@ -123,6 +127,12 @@ class MemoryRoomRepository implements RoomRepository {
 
   async listMemberships(roomId: string): Promise<Membership[]> {
     return [...this.memberships.values()].filter((m) => m.roomId === roomId);
+  }
+
+  async listMembershipsForSession(sessionId: string): Promise<Membership[]> {
+    return [...this.memberships.values()].filter(
+      (m) => m.sessionId === sessionId,
+    );
   }
 }
 
@@ -244,7 +254,7 @@ function createService() {
     ) => inviteSessions(deps, auth, input),
     respondToInvitation: (
       auth: string,
-      input: { roomId: string; accept: boolean },
+      input: { roomId: string; accept: boolean; idempotencyKey?: string },
     ) => respondToInvitation(deps, auth, input),
     getRoomContext: (auth: string, roomId: string) =>
       getRoomContext(deps, auth, roomId),
@@ -378,6 +388,24 @@ describe("room membership authorization", () => {
     expect(context.participants.map((p) => p.id).sort()).toEqual(
       [alice.session.id, bob.session.id].sort(),
     );
+    expect(context.recentEvents.map((event) => event.type)).toEqual([
+      "member_invited",
+      "member_joined",
+    ]);
+  });
+
+  it("replays an invitation response with the same idempotency key", async () => {
+    const { service, alice, bob } = await fixture();
+    const room = await createRoomAndInvite(service, alice, bob);
+    const input = { roomId: room.id, accept: true, idempotencyKey: "accept-1" };
+    const first = await service.respondToInvitation(bob.auth, input);
+    const replay = await service.respondToInvitation(bob.auth, input);
+    expect(replay).toEqual(first);
+    const context = await service.getRoomContext(alice.auth, room.id);
+    expect(context.recentEvents.map((event) => event.type)).toEqual([
+      "member_invited",
+      "member_joined",
+    ]);
   });
 });
 
