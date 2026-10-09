@@ -5,7 +5,9 @@ export type DomainErrorCode =
   | "INVITATION_NOT_ACCEPTED"
   | "INVALID_TRANSITION"
   | "ROOM_CLOSED"
-  | "IDEMPOTENCY_CONFLICT";
+  | "IDEMPOTENCY_CONFLICT"
+  | "TASK_NOT_FOUND"
+  | "INVALID_PAYLOAD";
 
 export class DomainError extends Error {
   constructor(

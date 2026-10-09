@@ -133,8 +133,27 @@ class MemoryEventRepository implements EventRepository {
     this.events.push(event);
   }
 
+  async nextSequence(roomId: string): Promise<number> {
+    return (
+      this.events
+        .filter((e) => e.roomId === roomId)
+        .reduce((max, e) => Math.max(max, e.sequence), 0) + 1
+    );
+  }
+
   async listByRoom(roomId: string): Promise<RoomEvent[]> {
     return this.events.filter((e) => e.roomId === roomId);
+  }
+
+  async listAfter(
+    roomId: string,
+    afterSequence: number,
+    limit?: number,
+  ): Promise<RoomEvent[]> {
+    const matching = this.events
+      .filter((e) => e.roomId === roomId && e.sequence > afterSequence)
+      .sort((a, b) => a.sequence - b.sequence);
+    return limit === undefined ? matching : matching.slice(0, limit);
   }
 }
 
@@ -143,6 +162,15 @@ class MemoryTaskRepository implements TaskRepository {
 
   async insert(task: SharedTask): Promise<void> {
     this.tasks.push(task);
+  }
+
+  async findById(id: string): Promise<SharedTask | null> {
+    return this.tasks.find((task) => task.id === id) ?? null;
+  }
+
+  async update(task: SharedTask): Promise<void> {
+    const index = this.tasks.findIndex((entry) => entry.id === task.id);
+    if (index >= 0) this.tasks[index] = task;
   }
 
   async listByRoom(roomId: string): Promise<SharedTask[]> {

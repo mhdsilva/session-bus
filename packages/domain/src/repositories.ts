@@ -38,11 +38,25 @@ export interface RoomRepository {
 
 export interface EventRepository {
   insert(event: RoomEvent): Promise<void>;
+  /**
+   * Allocate the next per-room sequence (current maximum + 1). Adapters
+   * must read this inside the same write transaction that inserts the
+   * event so concurrent writers cannot reuse a sequence.
+   */
+  nextSequence(roomId: string): Promise<number>;
   listByRoom(roomId: string): Promise<RoomEvent[]>;
+  /** Events with `sequence > afterSequence`, ascending, optionally capped. */
+  listAfter(
+    roomId: string,
+    afterSequence: number,
+    limit?: number,
+  ): Promise<RoomEvent[]>;
 }
 
 export interface TaskRepository {
   insert(task: SharedTask): Promise<void>;
+  findById(id: string): Promise<SharedTask | null>;
+  update(task: SharedTask): Promise<void>;
   listByRoom(roomId: string): Promise<SharedTask[]>;
 }
 
