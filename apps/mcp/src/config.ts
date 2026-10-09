@@ -38,7 +38,7 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): BridgeConfig {
         .split(",")
         .map((v) => v.trim())
         .filter(Boolean),
-      currentFocus: "",
+      currentFocus: env.SESSION_BUS_CURRENT_FOCUS ?? "",
       metadata: {},
     },
   };
